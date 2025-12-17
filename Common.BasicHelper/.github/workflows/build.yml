@@ -1,0 +1,57 @@
+﻿name: Build
+
+on:
+  push:
+    branches:
+      - "main"
+    paths-ignore:
+      - ".*/**"
+      - "**/*.md"
+  pull_request:
+    branches:
+      - "main"
+    paths-ignore:
+      - ".*/**"
+      - "**/*.md"
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+
+      - name: Build
+        run: |
+          cd Common.BasicHelper
+
+          dotnet build -c Release
+
+      - name: Test
+        run: |
+          cd Common.BasicHelper.Test
+
+          dotnet test -c Release
+
+      - name: Add to GitHub Repo
+        if: ${{ matrix.os == 'ubuntu-latest' && github.event_name != 'pull_request' }}
+        run: |
+          dotnet nuget add source --username Crequency --password ${{ secrets.GITHUBTOKEN }} --store-password-in-clear-text --name github "https://nuget.pkg.github.com/Crequency/index.json"
+
+      - name: Publish Package to GitHub and NuGet
+        if: ${{ matrix.os == 'ubuntu-latest' && github.event_name != 'pull_request' }}
+        run: |
+          dotnet nuget push "./Common.BasicHelper/bin/Release/*.nupkg" --api-key ${{ secrets.GITHUBTOKEN }} --source "github" --skip-duplicate
+          dotnet nuget push "./Common.BasicHelper/bin/Release/*.nupkg" --api-key ${{ secrets.NUGETKEY }} --source "https://api.nuget.org/v3/index.json" --skip-duplicate --no-symbols
